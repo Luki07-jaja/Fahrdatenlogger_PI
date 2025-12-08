@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 import os
 
-# GitHub Test 1
+# GitHub Test 3
 
 def main():
     # --------------- Logger Initialisieren ---------------
