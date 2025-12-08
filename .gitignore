@@ -1,0 +1,25 @@
+# --------- Virtuelle Umgebung ---------
+env/
+venv/
+.venv/
+
+# --------- Logs & Fahrdaten ---------
+logs/
+*.log
+*.csv
+*.sqlite
+
+# --------- Python Cache ---------
+__pycache__/
+*.pyc
+
+# --------- Editor Dateien ---------
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# --------- System Dateien ---------
+.DS_Store
+Thumbs.db
+
