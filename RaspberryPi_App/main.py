@@ -1,4 +1,4 @@
-from Hardware.rs485_interface import run_frame_checker
+from RaspberryPi_App.Hardware.UART_interface import run_frame_checker
 from utils.logger import Datalogger
 import sys
 from datetime import datetime
