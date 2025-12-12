@@ -1,4 +1,4 @@
-from RaspberryPi_App.Hardware.UART_interface import run_frame_checker
+from Hardware.UART_interface import run_frame_checker
 from utils.logger import Datalogger
 import sys
 from datetime import datetime
@@ -6,7 +6,7 @@ import os
 
 # GitHub Test 3
 
-def main():
+def main()  :
     # --------------- Logger Initialisieren ---------------
     logger = Datalogger()
 
