@@ -1,7 +1,7 @@
 import sqlite3      # DB
 import datetime     # Timestamps
 import os           # für Paths
-import csv          
+import csv         
 
 # ------------------------------------ Datenlogger Klasse ------------------------------------
 class Datalogger: 
@@ -19,7 +19,7 @@ class Datalogger:
         self.cursor = self.conn.cursor()
 
         # --------------------- DB Spalten erstellen --------------------
-        # Spalten für Sensordaten erstellen --> einmalig bei start
+        # Spalten für Sensordaten erstellen / beschriften --> einmalig bei start
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS sensor_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,5 +101,5 @@ class Datalogger:
 
     # ------------------------ Schließen / CSV erstellen ---------------------
     def close(self):         
-        self.export_csv()       # erstellt dei CSV
+        self.export_csv()       # erstellt die CSV
         self.conn.close()       # schließt die DB

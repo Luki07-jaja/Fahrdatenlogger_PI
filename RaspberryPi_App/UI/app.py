@@ -2,12 +2,13 @@ from kivy.app import App
 from UI.screens.start_ui import StartScreen
 import subprocess
 
-class FahrdatenloggerUI(App):
+# -------------------------------- EMX UI -----------------------------------
+class FahrdatenloggerUI(App): # Klasse erbt von Kivy App
 
-    def build(self):
+    def build(self):        # UI builden 
         return StartScreen()   
 
-    def on_stop(self):
+    def on_stop(self):      # Sicherheitsnet: Service Immer beenden bei schließen / Crash ...
         print("UI wird beendet")
         subprocess.run(
             ["sudo", "systemctl", "stop", "fahrdatenlogger.service"],
