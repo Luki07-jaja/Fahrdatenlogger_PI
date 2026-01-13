@@ -16,11 +16,11 @@ class LoggerStatus(BoxLayout):
             self.color = Color(1,0,0) # Rot
             self.circle = Ellipse(size = (30, 30), pos = self.pos) # Kreis erstellen
         
-        self.label = Label(text="Logger Aus", font_size=24) # Text hinzufügen
+        self.label = Label(text="Logger Aus", font_size=24, Color = (0,0,0,1)) # Text hinzufügen
         self.add_widget(self.label) # Widget hinzufügen
         self.bind(pos=self._update_circle) # Widget updaten
 
-    def _update_circle(self, *args):
+    def _update_circle(self, *_):
         self.circle.pos = (self.x, self.y + 15)
 
     def update(self):
