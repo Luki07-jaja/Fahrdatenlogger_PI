@@ -1,82 +1,139 @@
+from kivy.config import Config
+
+Config.set("graphics", "fullscreen", "auto")   # echtes fullscreen
+Config.set("graphics", "borderless", "1")      # keine Fensterdeko
+Config.set("graphics", "resizable", "0")       # keine Resize-Artefakte
+Config.set("graphics", "width", "1024")        # passt zu X
+Config.set("graphics", "height", "600")        # passt zu X
+
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.screenmanager import ScreenManager
 from kivy.uix.label import Label
 from kivy.uix.button import Button
-from kivy.graphics import Color
+from kivy.uix.widget import Widget
+from kivy.clock import Clock
+from kivy.core.window import Window
+from kivy.graphics import Color, Rectangle
 import subprocess
 
 from UI.widgets.status import LoggerStatus
 from UI.screens.dashboard_ui import DashboardScreen
 from UI.screens.start_ui import StartScreen
 
-# -------------------------------- Root UI Class ----------------------------
-# einbindung der einzelenen Screens und des Headers (für Status) --> UI
+
 class RootUI(BoxLayout):
     def __init__(self, **kwargs):
-        super().__init__(orientation = "vertical",**kwargs)
+        super().__init__(orientation="vertical", **kwargs)
 
-        # Header immer sichtbar
         self.header = HeaderBar()
 
-        # Screens
+        with self.canvas.before:
+            Color(1, 1, 1, 1)   # weiß
+            self._bg = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=self._update_bg, size=self._update_bg)
+
         self.sm = ScreenManager()
         self.sm.add_widget(StartScreen())
         self.sm.add_widget(DashboardScreen())
 
-        # Screenmanager und Header einbinden
         self.add_widget(self.header)
         self.add_widget(self.sm)
 
-# ----------------------------- UI Header Function -----------------------------
-# Header der Universal auf allen Screens sichtbar ist mit Loggerstatus anzeige
-# Titel und Exit Button
-class HeaderBar(BoxLayout):
-    def __init__(self, **kwargs):
-        super().__init__(
-            orientation = "horizontal",
-            size_hint_y = None,
-            height = 60,
-            padding = (20,10),
-            spacing = 15,
-            **kwargs
-            )
-        
-        self.status = LoggerStatus()
-        self.status.size_hint_x = None
-        self.status.width = 220
+    def _update_bg(self, *_):
+        self._bg.pos = self.pos
+        self._bg.size = self.size
 
-        self.titel = Label(
-            text = "[b]E-MX[/b]",
-            markup = True,
-            font_size = 28,
-            Color = (0,0,0,1)
+
+class HeaderBar(BoxLayout):
+     def __init__(self, **kwargs):
+        super().__init__(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=70, # Höhe
+            padding=(15, 15, 10, 0), # links, oben, rechts, unten
+            spacing=0,
+            **kwargs
         )
+
+        # --- LINKER CONTAINER (Status) ---
+        left = BoxLayout(
+            orientation="horizontal",
+            size_hint_x=None,
+            width=260 # Breite 
+        )
+
+        self.status = LoggerStatus() # Loggerstatus Objekt erstellen / zuweisen
+        left.add_widget(self.status) # Status hinzufügen
+
+        # --- MITTE (Titel) ---
+        self.titel = Label(
+            text="[b]E-MX[/b]",
+            markup=True,
+            font_size=28,
+            color=(0, 0, 0, 1),
+            halign="center",
+            valign="middle",
+            size_hint_x= 1
+        )
+        self.titel.bind(
+            size=lambda inst, *_: setattr(inst, "text_size", inst.size)
+        )
+
+        # --- RECHTER CONTAINER (Exit) ---
+        right = BoxLayout(
+            orientation="horizontal",
+            size_hint_x=None,
+            width=260 # Breite
+        )
+        
+        # Spacer schiebt Button nach rechts
+        right.add_widget(Widget())
 
         self.exit_button = Button(
-            text="✕",
-            size_hint = (None, 1),
-            width = 80,
-            font_size = 20,
-            background_normal = "",
-            background_color = (0,0,0,1),
-            Color = (1,1,1,1)
+            text="X",
+            size_hint=(None, None),
+            width=60,
+            height=60,
+            font_size=36,
+            background_normal="",
+            background_color=(1, 0, 0, 1),
+            color=(0, 0, 0, 1),
+            pos_hint={"center_y": 0.5}
+        )
+        self.exit_button.bind(
+            on_release=lambda *_: App.get_running_app().stop()
         )
 
-        self.exit_button.bind(on_release = lambda *_: App.get_running_app().stop())
+        right.add_widget(self.exit_button)
 
-        self.add_widget(self.status())
-        self.add_widget(self.titel())
-        self.add_widget(self.exit_button())
+        # --- ZUSAMMENBAU ---
+        self.add_widget(left)
+        self.add_widget(self.titel)
+        self.add_widget(right)
 
 
-# ------------------------------- EMX UI APP -----------------------------------
-class FahrdatenloggerUI(App): # Klasse erbt von Kivy App
+class FahrdatenloggerUI(App):
+    def build(self):
+        # --- Fullscreen / Kiosk ---
+        Window.fullscreen = True
+        Window.borderless = True
+        Window.show_cursor = False
 
-    def build(self):        # UI builden 
-        return RootUI()     # Root funktion ausführen (Screens und Header)
+        root = RootUI()
 
-    def on_stop(self):      # Sicherheitsnet: Service Immer beenden bei schließen / Crash ...
+        # --- Status regelmäßig aktualisieren (sonst bleibt LED rot / Text alt) ---
+        Clock.schedule_interval(lambda dt: root.header.status.update(), 0.5)
+
+        # Optional: Beim Screenwechsel Status sofort updaten
+        root.sm.bind(current=lambda *_: root.header.status.update())
+
+        # initialer Status
+        root.header.status.update()
+
+        return root
+
+    def on_stop(self):
         print("UI wird beendet")
         subprocess.run(
             ["sudo", "systemctl", "stop", "fahrdatenlogger.service"],

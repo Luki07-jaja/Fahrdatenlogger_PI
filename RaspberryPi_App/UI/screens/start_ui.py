@@ -1,77 +1,60 @@
-from kivy.uix.boxlayout import BoxLayout 
+from kivy.uix.screenmanager import Screen
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.button import Button
+from kivy.uix.label import Label
+from kivy.clock import Clock
+from threading import Thread
 import subprocess
-from threading import Thread # Erlaubt parallele Ausführung von Code ohne das UI zu blockieren
-from kivy.clock import Clock # Zeitsteuerung und Thread Updates
-from kivy.app import App
 
-from UI.widgets.status import LoggerStatus
 
-# ----------------------------------- Startscreen UI Klasse -------------------------------
-class StartScreen(BoxLayout): # gesamte Klasse erbt von Boxlayout
-    # Konstruktur: initialisierung der Start / Stop und Exit Buttons
+class StartScreen(Screen):
     def __init__(self, **kwargs):
-        super().__init__(orientation="vertical", spacing=20, **kwargs) # vertikale anordnung
+        super().__init__(name="start", **kwargs)
 
-        self.status = LoggerStatus() # Logger Status Objekt erstellen
-        self.add_widget(self.status) # Widget hinzufügen
+        root = BoxLayout(orientation="vertical", padding=40, spacing=20)
 
-        self.start_btn = Button( # Start / Stopp Button erstellen
-            text="Fahrt starten / stoppen", 
-            size_hint=(1, 0.3),
-            font_size=28
+        top = AnchorLayout(anchor_x="center", anchor_y="center", size_hint_y=0.55)
+        logo = Label(
+            text="[b]E-MX[/b]\n[i]Fahrdatenlogger[/i]",
+            markup=True,
+            font_size=52,
+            color=(0, 0, 0, 1),
+            halign="center",
+            valign="middle"
         )
-        self.start_btn.bind(on_release=self._toggle_logger) # Button auf toggle_logger "binden"
+        logo.bind(size=lambda inst, *_: setattr(inst, "text_size", inst.size))
+        top.add_widget(logo)
 
-        self.exit_btn = Button( # Programm abschluss Button erstellen
-            text="Programm beenden",
-            size_hint=(1, 0.2),
-            background_color=(1, 0, 0, 1),
-            font_size=24
+        mid = AnchorLayout(anchor_x="center", anchor_y="center", size_hint_y=0.45)
+        self.start_btn = Button(
+            text="Fahrt starten",
+            size_hint=(None, None),
+            size=(520, 110),
+            font_size=34,
+            background_normal="",
+            background_color=(0.95, 0.75, 0.10, 1),
+            color=(0, 0, 0, 1)
         )
-        self.exit_btn.bind(on_release=self.exit_app) # Button auf exit_app "binden"
+        self.start_btn.bind(on_release=self._start_ride)
+        mid.add_widget(self.start_btn)
 
-        self.add_widget(self.start_btn) # Widgets hinzufügen
-        self.add_widget(self.exit_btn)
+        root.add_widget(top)
+        root.add_widget(mid)
+        self.add_widget(root)
 
-        Clock.schedule_interval(lambda dt: self.status.update(), 0.5)   # Status regelmäßig aktualisieren
+    def _start_ride(self, *_):
+        self.start_btn.disabled = True
+        Thread(target=self._start_worker, daemon=True).start()
 
-    # ----------------------------- Start / Stop Button Logik ----------------------------
-    # wird beim Drücken der Buttons ausgeführt. Startet eigenen Thread fürs bearbeiten der Services
-    def _toggle_logger(self, *args):
-        self.start_btn.disabled = True  # Mehrfachklick verhindern button "sperren"
+    def _start_worker(self):
+        subprocess.run(
+            ["systemctl", "start", "fahrdatenlogger.service"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        Clock.schedule_once(self._go_dashboard, 0)
 
-        Thread( # startet neuen hintergrund Thread für Service Befehle
-            target=self._toggle_logger_worker,
-            daemon=True
-        ).start()
-
-    # ------------------------------ Bearbeiten der Services -----------------------------
-    # Service commands könnten die UI einfrieren deshalb --> auslagern in eigenen Thread
-    def _toggle_logger_worker(self): # eigener Thread  läuft nicht im UI Thread
-        try:
-            if self.status._is_logger_running():
-                subprocess.run(
-                    ["systemctl", "stop", "fahrdatenlogger.service"], # Service befehle (könnten blockieren)
-                    check=True
-                )
-            else:
-                subprocess.run(
-                    ["systemctl", "start", "fahrdatenlogger.service"],
-                    check=True
-                )
-        except Exception as e: # Fehler ausgabe
-            print("Systemd Fehler:", e)
-
-        # UI-Update sicher im Main-Thread
-        Clock.schedule_once(self._after_toggle, 0) # Rücksprung in den Main Thread
-
-    # ------------------------------ Toggle Update -----------------------------
-    # Updatet die Buttons nach dem Drücken und gibt sie wieder "frei"
-    def _after_toggle(self, dt): # Status-update nach dem Button toggle
-        self.status.update()
-        self.start_btn.disabled = False # Button wieder "frei geben"
-
-    # ------------------------ App / Programm schließen -------------------------
-    def exit_app(self, *args): # App beenden
-        App.get_running_app().stop()
+    def _go_dashboard(self, dt):
+        self.start_btn.disabled = False
+        self.manager.current = "dashboard"
