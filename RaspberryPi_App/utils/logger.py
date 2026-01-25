@@ -1,13 +1,18 @@
 import sqlite3      # DB
 import datetime     # Timestamps
 import os           # für Paths
-import csv         
+import csv    
+import math         # für Strecken berechnung     
 
 # ------------------------------------ Datenlogger Klasse ------------------------------------
 class Datalogger: 
 
     # ---------------------- Initailisierung --------------------
     def __init__(self):    
+        self.start_time = datetime.datetime.now()
+        self.drive_distance = 0
+        self.prev_gps = None
+
         base_path = os.path.join(os.path.dirname(__file__), "..", "logs")   # zum richtigen directory führen
         os.makedirs(base_path, exist_ok=True)   # directory erstellen fals es nicht existiert
 
@@ -24,7 +29,8 @@ class Datalogger:
             CREATE TABLE IF NOT EXISTS sensor_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 pi_timestamp TEXT,
-                esp_timestamp,
+                drive_time TEXT,
+                drive_distance REAL,           
                 bmp_temp REAL,
                 bmp_pressure REAL,
                 bmp_alt REAL,
@@ -46,23 +52,62 @@ class Datalogger:
 
         self.conn.commit()  # ausführen
 
+    def distance_m(self, lat1, lon1, lat2, lon2):
+        R = 6371000.0
+        phi1, phi2 = math.radians(lat1), math.radians(lat2)
+        dphi = math.radians(lat2 -lat1)
+        dlambda = math.radians(lon2 - lon1)
+        a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+
+        return 2 * R * math.asin(math.sqrt(a))
+
     # --------------------------- Frame logging ---------------------------
     def frame_logging(self, sensor):        # logged einen Frame in die DB
         
         pi_timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]  # gute Pi Timestamps erstellen
 
+        elapsed_time = datetime.datetime.now() - self.start_time # vergangene Zeit seit Programmstart
+
+        total_seconds = int(elapsed_time.total_seconds())    # vergangene Zeit in Sekunden
+        milliseconds = int(elapsed_time.microseconds/1000)   # vergangen Zeit in Millisekunden
+
+        hours = total_seconds // 3600           # Stunden berechnen 
+        minutes = (total_seconds % 3600) // 60  # Minuten berechnen
+        seconds = total_seconds % 60            # Sekunden berechnen
+
+        drive_time = f"{hours:02}:{minutes:02}:{seconds:02}:{milliseconds:03}"  # Fahrt-Zeit zusammenbauen
+
+        gps_motion = False
+        if sensor.gps_firstfix and sensor.gps_speed is not None:
+            gps_motion = sensor.gps_speed > 1.5
+
+        imu_motion = (abs(sensor.g_long) + abs(sensor.g_lat) + abs(sensor.g_vert)) > 0.05
+        moving = gps_motion or imu_motion
+
+        if sensor.gps_firstfix and sensor.gps_lat is not None and sensor.gps_long is not None:
+            cur_gps = (sensor.gps_lat, sensor.gps_long)
+
+            if self.prev_gps is not None and cur_gps != self.prev_gps and moving:
+                d = self.distance_m(self.prev_gps[0], self.prev_gps[1], cur_gps[0], cur_gps[1])
+                
+                if 0.2 <= d <= 50:
+                    self.drive_distance += d
+
+            self.prev_gps = cur_gps
+
         # ------------------------- DB Spalten befüllen ----------------------
         # SQLite befüllen / schreibt alle Daten des Frames in die DB spalten
         self.cursor.execute("""     
                 INSERT INTO sensor_log (
-                    pi_timestamp, esp_timestamp, bmp_temp, bmp_pressure, bmp_alt,
+                    pi_timestamp, drive_time, drive_distance, bmp_temp, bmp_pressure, bmp_alt,
                     g_lat, g_long, g_vert, lean_deg, heading_deg, pitch_deg,
                     gps_lat, gps_long, gps_alt, gps_speed, gps_heading,
                     gps_firstfix, esp_counter
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
             """, (
                 pi_timestamp,
-                sensor.esp_timestamp,
+                drive_time,
+                self.drive_distance,
                 sensor.bmp_temp,
                 sensor.bmp_pressure,
                 sensor.bmp_alt,
