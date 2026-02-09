@@ -8,7 +8,8 @@ import math         # für Strecken berechnung
 class Datalogger: 
 
     # ---------------------- Initailisierung --------------------
-    def __init__(self):    
+    def __init__(self, publisher=None):   
+        self.publisher = publisher 
         self.start_time = datetime.datetime.now()
         self.drive_distance = 0
         self.prev_gps = None
@@ -107,7 +108,7 @@ class Datalogger:
             """, (
                 pi_timestamp,
                 drive_time,
-                self.drive_distance,
+                round(self.drive_distance, 2),
                 sensor.bmp_temp,
                 sensor.bmp_pressure,
                 sensor.bmp_alt,
@@ -127,6 +128,24 @@ class Datalogger:
             ))
 
         self.conn.commit()      # bestätigen
+
+        # -------- Live Push (Websocket) ----------------
+        if self.publisher is not None:
+            self.publisher.publish({
+                "pi_timestamp": pi_timestamp,
+                "drive_time": drive_time,
+                "drive_distance_m": round(self.drive_distance, 2),
+                "gps_firstfix": int(sensor.gps_firstfix),
+                "gps_speed": sensor.gps_speed,
+                "gps_heading": sensor.gps_heading,
+                "gps_lat": sensor.gps_lat,
+                "gps_long": sensor.gps_long,
+                "lean_deg": sensor.lean_deg,
+                "heading_deg": sensor.heading_deg,
+                "pitch_deg": sensor.pitch_deg,
+                # Akkudaten zukünfitig
+            })
+
 
     # -------------------------- DB Daten --> CSV -----------------------------
     def export_csv(self):       # exportiert die loggs aus SQLite DB in CSV

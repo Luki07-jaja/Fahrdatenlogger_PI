@@ -1,4 +1,5 @@
 from Hardware.UART_interface import run_frame_checker
+from utils.live_ws_publisher import LiveWSPublisher
 from utils.logger import Datalogger
 import sys
 from datetime import datetime
@@ -40,7 +41,9 @@ def reset_esp(pulse_s=0.1, boot_wait_s=0.3):
         print(f"GPIO reset fehlgeschlagen (läuft trotzdem weiter): {e}")
 
 def main():
-    logger = Datalogger()
+    publisher = LiveWSPublisher("ws://127.0.0.1:8765")
+    publisher.start()
+    logger = Datalogger(publisher=publisher)
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     log_dir = "/home/luki/Fahrdatenlogger/RaspberryPi_App/logs"
@@ -81,6 +84,9 @@ def main():
     finally:
         logger.close()
         print("Logging beendet → CSV exportiert")
+        if publisher:
+            publisher.stop()
+        print("Live WebSocket übertragung beendet")
         debug_file.close()
 
 

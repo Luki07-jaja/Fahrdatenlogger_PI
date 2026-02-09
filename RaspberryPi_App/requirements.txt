@@ -3,5 +3,7 @@ kivy
 requests
 folium   # (für Offline-Karten)
 gmplot   # (für Google Maps Routen)
+websockets
+
 
 

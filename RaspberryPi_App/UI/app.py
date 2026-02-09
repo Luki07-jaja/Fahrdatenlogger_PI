@@ -16,20 +16,26 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.graphics import Color, Rectangle
 import subprocess
+from datetime import datetime
 
 from UI.widgets.status import LoggerStatus
 from UI.screens.dashboard_ui import DashboardScreen
 from UI.screens.start_ui import StartScreen
+from UI.utils.live_client import LiveWSClient
 
 
 class RootUI(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(orientation="vertical", **kwargs)
 
+        self.ws = LiveWSClient()
+        self.ws.start()
+        print("LiveWSClient gestartet")
+
         self.header = HeaderBar()
 
         with self.canvas.before:
-            Color(1, 1, 1, 1)   # weiß
+            Color(1, 1, 1, 1)   # Backgroundcolor für gesamtes Display weiß
             self._bg = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self._update_bg, size=self._update_bg)
 
@@ -46,7 +52,7 @@ class RootUI(BoxLayout):
 
 
 class HeaderBar(BoxLayout):
-     def __init__(self, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(
             orientation="horizontal",
             size_hint_y=None,
@@ -67,8 +73,8 @@ class HeaderBar(BoxLayout):
         left.add_widget(self.status) # Status hinzufügen
 
         # --- MITTE (Titel) ---
-        self.titel = Label(
-            text="[b]E-MX[/b]",
+        self.clock_label = Label(
+            text="[b]00:00[/b]",
             markup=True,
             font_size=28,
             color=(0, 0, 0, 1),
@@ -76,9 +82,11 @@ class HeaderBar(BoxLayout):
             valign="middle",
             size_hint_x= 1
         )
-        self.titel.bind(
+        self.clock_label.bind(
             size=lambda inst, *_: setattr(inst, "text_size", inst.size)
         )
+        self._update_clock()
+        Clock.schedule_interval(self._update_clock,1)
 
         # --- RECHTER CONTAINER (Exit) ---
         right = BoxLayout(
@@ -109,12 +117,21 @@ class HeaderBar(BoxLayout):
 
         # --- ZUSAMMENBAU ---
         self.add_widget(left)
-        self.add_widget(self.titel)
+        self.add_widget(self.clock_label)
         self.add_widget(right)
+    
+    def _update_clock(self, *_):
+            now = datetime.now().strftime("%H:%M")
+            self.clock_label.text = f"[b]{now}[/b]"
+
 
 
 class FahrdatenloggerUI(App):
     def build(self):
+
+        subprocess.run(["systemctl", "stop", "fahrdatenlogger.service"],    # sicherstellen das der Logger nach Boot "Off" ist
+               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
         # --- Fullscreen / Kiosk ---
         Window.fullscreen = True
         Window.borderless = True
@@ -125,7 +142,7 @@ class FahrdatenloggerUI(App):
         # --- Status regelmäßig aktualisieren (sonst bleibt LED rot / Text alt) ---
         Clock.schedule_interval(lambda dt: root.header.status.update(), 0.5)
 
-        # Optional: Beim Screenwechsel Status sofort updaten
+        # Beim Screenwechsel Status sofort updaten
         root.sm.bind(current=lambda *_: root.header.status.update())
 
         # initialer Status

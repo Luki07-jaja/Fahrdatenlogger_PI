@@ -8,10 +8,16 @@ from kivy.clock import Clock
 from threading import Thread
 import subprocess
 
+from UI.utils.live_client import LiveWSClient
+
 
 class DashboardScreen(Screen):
     def __init__(self, **kw):
         super().__init__(name="dashboard", **kw)
+
+        self.ws = LiveWSClient()
+        self.ws.start()
+        Clock.schedule_interval(self._update_live, 0.1) # 10Hz 
 
         root = BoxLayout(orientation="vertical", padding=10, spacing=10)
 
@@ -86,3 +92,9 @@ class DashboardScreen(Screen):
             stderr=subprocess.DEVNULL
         )
         return result.stdout.decode().strip() == "active"
+    
+    def _update_live(self, dt):
+        data = self.ws.latest
+        if not data:
+            return
+        print("UI LIVE:", data.get("gps_speed"), data.get("lean_deg")) # Test: Verbindung zwischen WS zu UI
