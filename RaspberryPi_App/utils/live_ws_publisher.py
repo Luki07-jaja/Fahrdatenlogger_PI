@@ -28,7 +28,7 @@ class LiveWSPublisher:
     def stop(self):
         self._stop.set()
 
-    def publish(self, payload: dict):
+    def publish(self, payload: dict): # Funktion zum pushen von den empfangenen Datenframes
         """Nicht blockierend: wenn Queue voll ist, droppt er das älteste."""
         try:
             msg = json.dumps(payload, ensure_ascii=False)
@@ -52,7 +52,7 @@ class LiveWSPublisher:
     async def _main(self):
         while not self._stop.is_set():
             try:
-                async with websockets.connect(self.url) as ws:
+                async with websockets.connect(self.url) as ws:  # mit WS Server verbinden
                     # verbunden -> sende Queue
                     while not self._stop.is_set():
                         try:

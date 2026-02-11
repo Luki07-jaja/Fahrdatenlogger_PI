@@ -79,22 +79,22 @@ class Datalogger:
         drive_time = f"{hours:02}:{minutes:02}:{seconds:02}:{milliseconds:03}"  # Fahrt-Zeit zusammenbauen
 
         gps_motion = False
-        if sensor.gps_firstfix and sensor.gps_speed is not None:
+        if sensor.gps_firstfix and sensor.gps_speed is not None:    # GPS Bewegung erkennen
             gps_motion = sensor.gps_speed > 1.5
 
-        imu_motion = (abs(sensor.g_long) + abs(sensor.g_lat) + abs(sensor.g_vert)) > 0.05
+        imu_motion = (abs(sensor.g_long) + abs(sensor.g_lat) + abs(sensor.g_vert)) > 0.05   # IMU Motion erkennen
         moving = gps_motion or imu_motion
 
-        if sensor.gps_firstfix and sensor.gps_lat is not None and sensor.gps_long is not None:
+        if sensor.gps_firstfix and sensor.gps_lat is not None and sensor.gps_long is not None:  # Momentane Position einlesen
             cur_gps = (sensor.gps_lat, sensor.gps_long)
 
-            if self.prev_gps is not None and cur_gps != self.prev_gps and moving:
-                d = self.distance_m(self.prev_gps[0], self.prev_gps[1], cur_gps[0], cur_gps[1])
+            if self.prev_gps is not None and cur_gps != self.prev_gps and moving:      # schauen ob sich momentane Position geändert hat
+                d = self.distance_m(self.prev_gps[0], self.prev_gps[1], cur_gps[0], cur_gps[1]) # Distanz berechnen
                 
-                if 0.2 <= d <= 50:
-                    self.drive_distance += d
+                if 0.2 <= d <= 50:  # "unmögliche" Sprünge erkennen
+                    self.drive_distance += d    # Distanz addieren
 
-            self.prev_gps = cur_gps
+            self.prev_gps = cur_gps # alte Position aktualisieren
 
         # ------------------------- DB Spalten befüllen ----------------------
         # SQLite befüllen / schreibt alle Daten des Frames in die DB spalten
@@ -130,6 +130,7 @@ class Datalogger:
         self.conn.commit()      # bestätigen
 
         # -------- Live Push (Websocket) ----------------
+        # JSON Dump für WS Server
         if self.publisher is not None:
             self.publisher.publish({
                 "pi_timestamp": pi_timestamp,

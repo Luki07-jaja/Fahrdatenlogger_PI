@@ -28,11 +28,11 @@ class RootUI(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(orientation="vertical", **kwargs)
 
-        self.ws = LiveWSClient()
-        self.ws.start()
+        self.ws = LiveWSClient()    # WS Client holen
+        self.ws.start()             # WebSocket start
         print("LiveWSClient gestartet")
 
-        self.header = HeaderBar()
+        self.header = HeaderBar()   # HeaderBar holen
 
         with self.canvas.before:
             Color(1, 1, 1, 1)   # Backgroundcolor für gesamtes Display weiß
@@ -40,10 +40,10 @@ class RootUI(BoxLayout):
         self.bind(pos=self._update_bg, size=self._update_bg)
 
         self.sm = ScreenManager()
-        self.sm.add_widget(StartScreen())
-        self.sm.add_widget(DashboardScreen())
+        self.sm.add_widget(StartScreen())       # Start UI
+        self.sm.add_widget(DashboardScreen())   # Dashboard UI
 
-        self.add_widget(self.header)
+        self.add_widget(self.header)    # Zusammenbauen: HeaderBar und aktiver Screen
         self.add_widget(self.sm)
 
     def _update_bg(self, *_):

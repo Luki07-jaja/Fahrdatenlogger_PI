@@ -21,6 +21,7 @@ class Sensordata:
     gps_alt: float = 0.0
     gps_speed: float = 0.0
     gps_heading: float = 0.0
+    # Akkudaten zukünfig
     gps_firstfix: bool = False
     esp_counter: int = 0
 
@@ -215,7 +216,7 @@ def unpack_frame(logger, data: bytes, last_esp_counter):
 
     return sensor.esp_counter
 
-# ---------------- MAIN FUNCTION --------------------
+# ---------------- "MAIN" FUNCTION --------------------
 def run_frame_checker(logger):
     while True:
         if handshake() and streaming_start():
