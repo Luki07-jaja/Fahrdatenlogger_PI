@@ -1,3 +1,8 @@
+"""
+    import logging  # Log-Zeilen Ausgaben reduzieren
+    logging.getLogger("websockets").setLevel(logging.WARNING)   
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+"""
 import asyncio
 import json
 import threading
@@ -16,10 +21,14 @@ class LiveWSClient:
         asyncio.run(self._ws_loop())
 
     async def _ws_loop(self):
-        async with websockets.connect(self.url) as ws:
+        async with websockets.connect(
+            self.url,
+            compression=None,
+            ping_interval=None
+            ) as ws:
 
             while True:
                 msg = await ws.recv()
-                print("LiveWSClient RECV:", msg) 
+                #print("LiveWSClient RECV:", msg) 
                 self.latest = json.loads(msg)
 

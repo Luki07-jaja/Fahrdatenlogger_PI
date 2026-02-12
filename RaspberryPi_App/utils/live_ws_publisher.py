@@ -1,3 +1,8 @@
+"""
+    import logging  # Log-Zeilen Ausgaben reduzieren
+    logging.getLogger("websockets").setLevel(logging.WARNING)   
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+"""
 import asyncio
 import threading
 import json
@@ -13,7 +18,7 @@ class LiveWSPublisher:
     - reconnectet automatisch
     """
 
-    def __init__(self, url: str = "ws//127.0.0.1:8765", max_queue: int = 200):
+    def __init__(self, url: str = "ws://127.0.0.1:8765", max_queue: int = 200):
         self.url = url
         self._q: Queue[str] = Queue(maxsize=max_queue)
         self._stop = threading.Event()
@@ -52,24 +57,22 @@ class LiveWSPublisher:
     async def _main(self):
         while not self._stop.is_set():
             try:
-                async with websockets.connect(self.url) as ws:  # mit WS Server verbinden
+                async with websockets.connect(
+                    self.url,
+                    compression=None,
+                    ping_interval=None
+                    ) as ws:  # mit WS Server verbinden
                     # verbunden -> sende Queue
                     while not self._stop.is_set():
                         try:
-                            msg = self._q.get(timeout=0.2)
+                            msg = self._q.get_nowait()
                         except Empty:
                             await asyncio.sleep(0.01)
                             continue
-
                         try:
                             await ws.send(msg)
                         except Exception:
                             break # Verbindung dead --> reconnect
             except Exception:
                 # WS-Server evtl. noch nicht oben -> warten
-                time.sleep(0.5)
-
-            
-        
-
-
+                await asyncio.sleep(0.5)

@@ -18,6 +18,7 @@ class DashboardScreen(Screen):
     def __init__(self, **kw):
         super().__init__(name="dashboard", **kw)
 
+        self.logger_running = False
         Clock.schedule_interval(self._update_live, 0.1)  # Live refresh
 
         # ---------------------- ROOT -> Alles unter HeaderBar -----------------------------
@@ -138,11 +139,13 @@ class DashboardScreen(Screen):
         self._b_border.rectangle = (self.batt_box.x, self.batt_box.y, self.batt_box.width, self.batt_box.height)
 
     def on_pre_enter(self, *args):
+        self.logger_running = self._is_running()
         # bei jedem Betreten sicherheitshalber neu synchronisieren
         self._sync_state()
 
     def _sync_state(self):
-        running = self._is_running()
+        running = self.logger_running
+
         self.toggle_btn.text = "Fahrt beenden" if running else "Fahrt starten"
         self.toggle_btn.background_color = (0, 0, 0, 1) if running else (0.95, 0.75, 0.10, 1)
         self.toggle_btn.color = (1, 1, 1, 1) if running else (0, 0, 0, 1)
@@ -152,18 +155,20 @@ class DashboardScreen(Screen):
         Thread(target=self._toggle_worker, daemon=True).start()
 
     def _toggle_worker(self):
-        if self._is_running():
+        if self.logger_running:
             subprocess.run(
                 ["systemctl", "stop", "fahrdatenlogger.service"],
                 stdout=subprocess.DEVNULL, 
                 stderr=subprocess.DEVNULL
             )
+            self.logger_running = False
         else:
             subprocess.run(
                 ["systemctl", "start", "fahrdatenlogger.service"],
                 stdout=subprocess.DEVNULL, 
                 stderr=subprocess.DEVNULL
             )
+            self.logger_running = True
 
         Clock.schedule_once(self._after_toggle, 0)
 
@@ -174,21 +179,28 @@ class DashboardScreen(Screen):
     def _after_toggle(self, dt):
         self._sync_state()
 
-        if not self._is_running():
+        App.get_running_app().root.header.status.set_running(self.logger_running)
+
+        if not self.logger_running:
             self._reset_live_ui()
 
         self.toggle_btn.disabled = False
 
     def _is_running(self) -> bool:
-        result = subprocess.run(
-            ["systemctl", "is-active", "fahrdatenlogger.service"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL
-        )
-        return result.stdout.decode().strip() == "active"
+        try:
+            result = subprocess.run(
+                ["systemctl", "is-active", "fahrdatenlogger.service"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=0.25
+            )
+            return result.stdout.decode().strip() == "active"
+        except subprocess.TimeoutExpired:
+            return self.logger_running # Fallback
+    
     
     def _update_live(self, dt):
-        if not self._is_running():  # Wenn Logger nicht aktiv: keine Updates
+        if not self.logger_running:  # Wenn Logger nicht aktiv: keine Updates
             return
         
         root = App.get_running_app().root

@@ -8,8 +8,8 @@ import math         # für Strecken berechnung
 class Datalogger: 
 
     # ---------------------- Initailisierung --------------------
-    def __init__(self, publisher=None):   
-        self.publisher = publisher 
+    def __init__(self, publisher=None): # Dependency injection (muss nicht wissen was der publisher ist)
+        self.publisher = publisher      
         self.start_time = datetime.datetime.now()
         self.drive_distance = 0
         self.prev_gps = None
@@ -47,13 +47,19 @@ class Datalogger:
                 gps_speed REAL,
                 gps_heading REAL,
                 gps_firstfix INTEGER,
+                batt_voltage REAL,
+                batt_temp1 REAL,
+                batt_temp2 REAL,
+                batt_temp3 REAL,
+                batt_temp4 REAL,
+                max_batt_temp REAL,               
                 esp_counter INTEGER
             );
         """)
 
         self.conn.commit()  # ausführen
 
-    def distance_m(self, lat1, lon1, lat2, lon2):
+    def distance_m(self, lat1, lon1, lat2, lon2):   # Funktion zur Längen-Berechnung aus Geo Positionsänderung
         R = 6371000.0
         phi1, phi2 = math.radians(lat1), math.radians(lat2)
         dphi = math.radians(lat2 -lat1)
@@ -61,6 +67,19 @@ class Datalogger:
         a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
 
         return 2 * R * math.asin(math.sqrt(a))
+    
+    def max_batt_temp(self, *temps):    # Funktion zur Findung der höchsten Battery Temperatur
+        values = []
+        for t in temps:
+            if t is None:
+                continue
+            try:
+                if math.isnan(t):
+                    continue
+            except TypeError:
+                continue
+            values.append(t)
+        return max(values) if values else None
 
     # --------------------------- Frame logging ---------------------------
     def frame_logging(self, sensor):        # logged einen Frame in die DB
@@ -95,6 +114,8 @@ class Datalogger:
                     self.drive_distance += d    # Distanz addieren
 
             self.prev_gps = cur_gps # alte Position aktualisieren
+        
+        max_temp = self.max_batt_temp(sensor.batt_temp1, sensor.batt_temp2, sensor.batt_temp3, sensor.batt_temp4)
 
         # ------------------------- DB Spalten befüllen ----------------------
         # SQLite befüllen / schreibt alle Daten des Frames in die DB spalten
@@ -103,8 +124,9 @@ class Datalogger:
                     pi_timestamp, drive_time, drive_distance, bmp_temp, bmp_pressure, bmp_alt,
                     g_lat, g_long, g_vert, lean_deg, heading_deg, pitch_deg,
                     gps_lat, gps_long, gps_alt, gps_speed, gps_heading,
-                    gps_firstfix, esp_counter
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
+                    gps_firstfix, batt_voltage, batt_temp1, batt_temp2, batt_temp3, batt_temp4,
+                    max_batt_temp, esp_counter
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
             """, (
                 pi_timestamp,
                 drive_time,
@@ -124,6 +146,12 @@ class Datalogger:
                 sensor.gps_speed,
                 sensor.gps_heading,
                 int(sensor.gps_firstfix),   # ist 0 oder 1 = False / True
+                sensor.batt_voltage,
+                sensor.batt_temp1,
+                sensor.batt_temp2,
+                sensor.batt_temp3,
+                sensor.batt_temp4,
+                max_temp,
                 sensor.esp_counter
             ))
 
@@ -132,19 +160,20 @@ class Datalogger:
         # -------- Live Push (Websocket) ----------------
         # JSON Dump für WS Server
         if self.publisher is not None:
-            self.publisher.publish({
+            self.publisher.publish({    # Objekt mit Methode "publish" --> aufrufen
                 "pi_timestamp": pi_timestamp,
                 "drive_time": drive_time,
                 "drive_distance_m": round(self.drive_distance, 2),
-                "gps_firstfix": int(sensor.gps_firstfix),
                 "gps_speed": sensor.gps_speed,
                 "gps_heading": sensor.gps_heading,
                 "gps_lat": sensor.gps_lat,
                 "gps_long": sensor.gps_long,
+                "gps_firstfix": int(sensor.gps_firstfix),
                 "lean_deg": sensor.lean_deg,
-                "heading_deg": sensor.heading_deg,
                 "pitch_deg": sensor.pitch_deg,
-                # Akkudaten zukünfitig
+                "heading_deg": sensor.heading_deg,
+                "batt_voltage": sensor.batt_voltage,
+                "max_batt_temp": max_temp
             })
 
 

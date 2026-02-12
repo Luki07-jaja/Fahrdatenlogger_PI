@@ -140,13 +140,13 @@ class FahrdatenloggerUI(App):
         root = RootUI()
 
         # --- Status regelmäßig aktualisieren (sonst bleibt LED rot / Text alt) ---
-        Clock.schedule_interval(lambda dt: root.header.status.update(), 0.5)
+        # Clock.schedule_interval(lambda dt: root.header.status.update(), 0.5) --> blockiert
 
         # Beim Screenwechsel Status sofort updaten
-        root.sm.bind(current=lambda *_: root.header.status.update())
+        # root.sm.bind(current=lambda *_: root.header.status.update())
 
         # initialer Status
-        root.header.status.update()
+        # root.header.status.update()
 
         return root
 

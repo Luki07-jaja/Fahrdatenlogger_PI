@@ -45,7 +45,18 @@ class LoggerStatus(BoxLayout):
         self.add_widget(self.led)
         self.add_widget(self.label)
 
-    def update(self):
+    def set_running(self, running: bool):
+        if running:
+            self.led.set_rgb(0, 1, 0)
+            self.label.text = "Logger Ein"
+        else:
+            self.led.set_rgb(1, 0, 0)
+            self.label.text = "Logger Aus"
+
+
+    """
+        - blockiert den UI Main Thread
+        def update(self):
         if self._is_logger_running():
             self.led.set_rgb(0, 1, 0)
             self.label.text = "Logger Ein"
@@ -60,3 +71,5 @@ class LoggerStatus(BoxLayout):
             stderr=subprocess.DEVNULL
         )
         return result.stdout.decode().strip() == "active"
+    """
+    

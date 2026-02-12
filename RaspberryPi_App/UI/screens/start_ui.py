@@ -3,6 +3,8 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
+
+from kivy.app import App
 from kivy.clock import Clock
 from threading import Thread
 import subprocess
@@ -56,5 +58,7 @@ class StartScreen(Screen):
         Clock.schedule_once(self._go_dashboard, 0)  # wenn ausgeführt -> automatischer wechsel auf Dashboard UI
 
     def _go_dashboard(self, dt):    # wechsel auf Dashboard
+        App.get_running_app().root.header.status.set_running(True)
+
         self.start_btn.disabled = False
         self.manager.current = "dashboard"

@@ -21,14 +21,18 @@ class Sensordata:
     gps_alt: float = 0.0
     gps_speed: float = 0.0
     gps_heading: float = 0.0
-    # Akkudaten zukünfig
     gps_firstfix: bool = False
+    batt_voltage: float = 0.0
+    batt_temp1: float = 0.0
+    batt_temp2: float = 0.0
+    batt_temp3: float = 0.0
+    batt_temp4: float = 0.0
     esp_counter: int = 0
 
 # ---------------- UART Einstellungen --------------------
 START_BYTE = 0xAA
 END_BYTE   = 0x55
-FRAME_SIZE = 67     # passt zu: <I + 15f + ? + B> = 4 + 52 + 1 + 1 = 62 payload, + start/len/crc/end => 67
+FRAME_SIZE = 87     # passt zu: <I + 19f + ? + B> = 4 + 76 + 1 + 1 = 82 payload, + start/len/crc/end => 87
 
 PORT = '/dev/ttyS0'
 BAUD = 115200
@@ -166,7 +170,7 @@ def recv_frames(logger):
 
 # ---------------- Frame-Daten Dekodieren --------------------
 def unpack_frame(logger, data: bytes, last_esp_counter):
-    structure = "<Iffffffffffffff?B"  # 32 bit int + 13 Floats + ? = 1xbool + 1 x 8 Bit int
+    structure = "<Iffffffffffffff?fffffB"  # 32 bit int + 19 Floats + ? = 1xbool + 1 x 8 Bit int
 
     try:
         unpacked = struct.unpack(structure, data)
@@ -176,7 +180,7 @@ def unpack_frame(logger, data: bytes, last_esp_counter):
 
     sensor = Sensordata(*unpacked)
 
-    # --- Werte runden ---
+    # ------------------ Werte runden --------------------
     sensor.bmp_temp = round(sensor.bmp_temp, 2)
     sensor.bmp_pressure = round(sensor.bmp_pressure, 2)
     sensor.bmp_alt = round(sensor.bmp_alt, 2)
@@ -193,6 +197,12 @@ def unpack_frame(logger, data: bytes, last_esp_counter):
     sensor.gps_alt = round(sensor.gps_alt, 2)
     sensor.gps_speed = round(sensor.gps_speed, 2)
     sensor.gps_heading = round(sensor.gps_heading, 2)
+
+    sensor.batt_voltage = round(sensor.batt_voltage, 2)
+    sensor.batt_temp1 = round(sensor.batt_temp1, 2)
+    sensor.batt_temp2 = round(sensor.batt_temp2, 2)
+    sensor.batt_temp3 = round(sensor.batt_temp3, 2)
+    sensor.batt_temp4 = round(sensor.batt_temp4, 2)
 
     print("-" * 60)
     print(f"Time: {sensor.esp_timestamp}s | ESP-Alive-Counter: {sensor.esp_counter}")
@@ -211,6 +221,7 @@ def unpack_frame(logger, data: bytes, last_esp_counter):
     print(f"G: long={sensor.g_long:.2f}, lat={sensor.g_lat:.2f}, vert={sensor.g_vert:.2f}")
     print(f"Lean: {sensor.lean_deg:.2f}° | Heading: {sensor.heading_deg:.2f}° | Pitch: {sensor.pitch_deg:.2f}°")
     print(f"GPS: lat={sensor.gps_lat:.6f}, lon={sensor.gps_long:.6f}, speed={sensor.gps_speed:.2f} km/h")
+    print(f"Battery Voltage: {sensor.batt_voltage:.2f} V | Temperatures: {sensor.batt_temp1:.2f}°C, {sensor.batt_temp2:.2f}°C, {sensor.batt_temp3:.2f}°C, {sensor.batt_temp4:.2f}°C")
 
     logger.frame_logging(sensor)
 
