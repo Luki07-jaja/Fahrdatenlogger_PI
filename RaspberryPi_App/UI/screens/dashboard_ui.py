@@ -45,10 +45,10 @@ class DashboardScreen(Screen):
         self.batt_box = BoxLayout(
             orientation="vertical",
             size_hint=(None, None),
-            size=(dp(190), dp(160)),
-            pos_hint={"x": 0, "center_y": 0.5},   # linkes center im Mid-Bereich
+            size=(dp(200), dp(200)),
+            pos_hint={"x": 0, "center_y": 0.55},   # linkes center im Mid-Bereich
             padding=(12, 12),
-            spacing=8
+            spacing=2
         )
 
         with self.batt_box.canvas.before:   # Hintergrund + Rahmen
@@ -59,22 +59,45 @@ class DashboardScreen(Screen):
         self.batt_box.bind(pos=self._update_batt_bg, size=self._update_batt_bg)
 
         self.batt_lbl = Label(
-            text="[b]Akku-Daten[/b]\n\nTemp: 40°C\nVoltage: 72V\nCharge: 90%\n",
+            text="[b]Akku-Daten[/b]\n",
             markup=True,
-            font_size=22,
+            font_size=30,
             color=(0, 0, 0, 1),
-            halign="left",
+            halign="center",
             valign="top"
         )
         self.batt_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", inst.size))
+
+        self.batt_temp_lbl = Label(
+            text="[b]Temp: 0.0°C[/b]",
+            markup=True,
+            font_size=25,
+            color=(0, 0, 0, 1),
+            halign="center",
+            valign="center"
+        )
+        self.batt_temp_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", inst.size))
+
+        self.batt_voltage_lbl = Label(
+            text="[b]Voltage: 0.0 V[/b]",
+            markup=True,
+            font_size=25,
+            color=(0, 0, 0, 1),
+            halign="center",
+            valign="bottom"
+        )
+        self.batt_voltage_lbl.bind(size=lambda inst, *_: setattr(inst, "text_size", inst.size))
+
         self.batt_box.add_widget(self.batt_lbl)
+        self.batt_box.add_widget(self.batt_temp_lbl)
+        self.batt_box.add_widget(self.batt_voltage_lbl)
 
         # Mid-Center: Speed/Lean/Pitch
         center = AnchorLayout(
             anchor_x="center",
             anchor_y="center",
             size_hint=(None, None),
-            pos_hint={"center_x": 0.5, "center_y": 0.5},
+            pos_hint={"center_x": 0.5, "center_y": 0.45},
             size=(dp(520), dp(260))
         )
 
@@ -96,6 +119,7 @@ class DashboardScreen(Screen):
 
         self.sub_lbl = Label(
             text="Lean: 0.0°   |   Pitch: 0.0 °",
+            markup=True,
             font_size=26,
             color=(0, 0, 0, 1),
             halign="center",
@@ -174,7 +198,7 @@ class DashboardScreen(Screen):
 
     def _reset_live_ui(self):
         self.speed_lbl.text = "[b]0[/b]"
-        self.sub_lbl.text = "Lean: 0.0°   |   Pitch: 0.0°"
+        self.sub_lbl.text = "Lean: [color=#00aa00][b]0.0°[/b][/color]   |   Pitch: [color=#00aa00][b]0.0°[/b][/color]"
 
     def _after_toggle(self, dt):
         self._sync_state()
@@ -221,9 +245,14 @@ class DashboardScreen(Screen):
         lean = data.get("lean_deg", 0.0) or 0.0
         pitch = data.get("pitch_deg", 0.0) or 0.0
 
+        self.sub_lbl.text = f"Lean: [color=#00aa00][b]{abs(lean):.1f}°[/b][/color]   |   Pitch: [color=#00aa00][b]{abs(pitch):.1f}°[/b][/color]"
+
+        max_batt_temp = data.get("max_batt_temp", 0.0) or 0.0
+        self.batt_temp_lbl.text = f'Temp: [color=#ff0000][b]{max_batt_temp:.1f}°C[/b][/color]'
+
+        batt_voltage = data.get("batt_voltage", 0.0) or 0.0
+        self.batt_voltage_lbl.text = f'Voltage: [color=#0000ff][b]{batt_voltage:.1f} V[/b][/color]'
         #if distance >= 1000:
         #    distance_txt = f"{distance/1000:.2f} km"
         #else:
         #    distance_txt = f"{distance:.1f} m"
-
-        self.sub_lbl.text = f"Lean: {abs(lean):.1f}°   |   Pitch: {abs(pitch):.1f}"
