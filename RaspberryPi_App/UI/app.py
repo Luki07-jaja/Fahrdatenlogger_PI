@@ -1,4 +1,4 @@
-from kivy.config import Config
+from kivy.config import Config  # Zum sicherstellen das Borderless Fullscreen verwendet wird
 
 Config.set("graphics", "fullscreen", "auto")   # echtes fullscreen
 Config.set("graphics", "borderless", "1")      # keine Fensterdeko
@@ -12,9 +12,10 @@ from kivy.uix.screenmanager import ScreenManager
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.widget import Widget
+
 from kivy.clock import Clock
 from kivy.core.window import Window
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, RoundedRectangle
 import subprocess
 from datetime import datetime
 
@@ -56,7 +57,7 @@ class HeaderBar(BoxLayout):
         super().__init__(
             orientation="horizontal",
             size_hint_y=None,
-            height=70, # Höhe
+            height=60, # Höhe
             padding=(15, 15, 10, 0), # links, oben, rechts, unten
             spacing=0,
             **kwargs
@@ -98,27 +99,37 @@ class HeaderBar(BoxLayout):
         # Spacer schiebt Button nach rechts
         right.add_widget(Widget())
 
-        self.exit_button = Button(
+        self.exit_btn = Button(
             text="X",
             size_hint=(None, None),
             width=60,
             height=60,
             font_size=36,
             background_normal="",
-            background_color=(1, 0, 0, 1),
+            background_color=(0, 0, 0, 0),
             color=(0, 0, 0, 1),
             pos_hint={"center_y": 0.5}
         )
-        self.exit_button.bind(
-            on_release=lambda *_: App.get_running_app().stop()
-        )
+        with self.exit_btn.canvas.before:
+            self._btn_color = Color(1, 0, 0, 1)  
+            self._btn_bg = RoundedRectangle(
+                pos=self.exit_btn.pos,
+                size=self.exit_btn.size,
+                radius=[15]
+            )
+        self.exit_btn.bind(pos=self._update_btn_bg, size=self._update_btn_bg)
+        self.exit_btn.bind(on_release=lambda *_: App.get_running_app().stop())
 
-        right.add_widget(self.exit_button)
+        right.add_widget(self.exit_btn)
 
         # --- ZUSAMMENBAU ---
         self.add_widget(left)
         self.add_widget(self.clock_label)
         self.add_widget(right)
+
+    def _update_btn_bg(self,*_):
+        self._btn_bg.pos = self.exit_btn.pos
+        self._btn_bg.size = self.exit_btn.size
     
     def _update_clock(self, *_):
             now = datetime.now().strftime("%H:%M")
@@ -138,15 +149,6 @@ class FahrdatenloggerUI(App):
         Window.show_cursor = False
 
         root = RootUI()
-
-        # --- Status regelmäßig aktualisieren (sonst bleibt LED rot / Text alt) ---
-        # Clock.schedule_interval(lambda dt: root.header.status.update(), 0.5) --> blockiert
-
-        # Beim Screenwechsel Status sofort updaten
-        # root.sm.bind(current=lambda *_: root.header.status.update())
-
-        # initialer Status
-        # root.header.status.update()
 
         return root
 

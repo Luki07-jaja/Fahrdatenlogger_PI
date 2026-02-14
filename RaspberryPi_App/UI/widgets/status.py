@@ -1,8 +1,9 @@
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
+from kivy.uix.anchorlayout import AnchorLayout
+
 from kivy.graphics import Color, Ellipse
-import subprocess
 
 
 class LedDot(Widget):
@@ -29,7 +30,7 @@ class LoggerStatus(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(orientation="horizontal", spacing=12, **kwargs)
         self.size_hint_y = None
-        self.height = 60
+        self.height = 40
 
         self.led = LedDot()
 
@@ -42,7 +43,15 @@ class LoggerStatus(BoxLayout):
         )
         self.label.bind(size=lambda inst, *_: setattr(inst, "text_size", inst.size))
 
-        self.add_widget(self.led)
+        led_container = AnchorLayout(   # Um LED-Dot richtig zu zentrieren
+            anchor_x="center",
+            anchor_y="center",
+            size_hint=(None, 1), 
+            width=40
+        )
+
+        led_container.add_widget(self.led)
+        self.add_widget(led_container)
         self.add_widget(self.label)
 
     def set_running(self, running: bool):
@@ -52,24 +61,3 @@ class LoggerStatus(BoxLayout):
         else:
             self.led.set_rgb(1, 0, 0)
             self.label.text = "Logger Aus"
-
-
-    """
-        - blockiert den UI Main Thread
-        def update(self):
-        if self._is_logger_running():
-            self.led.set_rgb(0, 1, 0)
-            self.label.text = "Logger Ein"
-        else:
-            self.led.set_rgb(1, 0, 0)
-            self.label.text = "Logger Aus"
-
-    def _is_logger_running(self) -> bool:
-        result = subprocess.run(
-            ["systemctl", "is-active", "fahrdatenlogger.service"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL
-        )
-        return result.stdout.decode().strip() == "active"
-    """
-    
