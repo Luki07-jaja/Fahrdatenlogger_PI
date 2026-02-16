@@ -1,17 +1,22 @@
-// Dashboard JavaScript
+// Dashboard JavaScript - Erweiterte Version mit History Feature
 let charts = {};
+let currentFile = null;
+let recentFiles = [];
 
 // Initialisierung beim Laden der Seite
 document.addEventListener('DOMContentLoaded', function() {
+    loadRecentFiles();
     loadDashboardData();
-    // Aktualisierung alle 30 Sekunden (optional)
-    // setInterval(loadDashboardData, 30000);
+    
+    // Auto-Refresh alle 10 Sekunden auf neue Fahrten prüfen
+    setInterval(checkForNewFiles, 10000);
 });
 
-// Hauptfunktion zum Laden der Dashboard-Daten
-async function loadDashboardData() {
+// Haupt funktion zum Laden der Dashboard-Daten
+async function loadDashboardData(file = null) {
     try {
-        const response = await fetch('/api/stats');
+        const url = file ? `/api/stats?file=${encodeURIComponent(file)}` : '/api/stats';
+        const response = await fetch(url);
         const data = await response.json();
         
         if (data.error) {
@@ -19,15 +24,190 @@ async function loadDashboardData() {
             return;
         }
         
+        // Aktuelle Datei speichern
+        currentFile = data.current_filepath;
+        
+        // Dateiname im Badge aktualisieren
+        document.getElementById('current-file-name').textContent = data.current_file || 'Keine Datei';
+        
         // KPI Cards aktualisieren
         updateKPIs(data);
         
         // Charts erstellen/aktualisieren
         updateCharts(data);
         
+        // History markieren
+        highlightCurrentFileInHistory();
+        
     } catch (error) {
         console.error('Error fetching dashboard data:', error);
     }
+}
+
+// Letzte Dateien laden
+async function loadRecentFiles() {
+    try {
+        const response = await fetch('/api/recent-files');
+        const data = await response.json();
+        
+        recentFiles = data.files || [];
+        displayRecentFiles(recentFiles);
+        
+    } catch (error) {
+        console.error('Error loading recent files:', error);
+        document.getElementById('history-list').innerHTML = 
+            '<div class="empty-state">Fehler beim Laden der Dateien</div>';
+    }
+}
+
+// Auf neue Dateien prüfen
+async function checkForNewFiles() {
+    try {
+        const response = await fetch('/api/recent-files');
+        const data = await response.json();
+        
+        const newFiles = data.files || [];
+        
+        // Prüfen ob neue Datei vorhanden
+        if (newFiles.length > 0 && recentFiles.length > 0) {
+            if (newFiles[0].filename !== recentFiles[0].filename) {
+                // Neue Fahrt erkannt!
+                showNotification('Neue Fahrt erkannt!');
+                recentFiles = newFiles;
+                displayRecentFiles(recentFiles);
+                
+                // Optional: Automatisch neue Fahrt laden
+                // loadDashboardData(newFiles[0].filepath);
+            }
+        }
+    } catch (error) {
+        console.error('Error checking for new files:', error);
+    }
+}
+
+// History anzeigen
+function displayRecentFiles(files) {
+    const container = document.getElementById('history-list');
+    
+    if (!files || files.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <p>Keine Fahrten gefunden</p>
+                <small>Starte eine Fahrt mit dem Logger, um Daten zu sehen</small>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    files.forEach((file, index) => {
+        const isActive = currentFile === file.filepath;
+        const num = index + 1;
+        
+        html += `
+            <div class="history-item ${isActive ? 'active' : ''}" onclick="selectFile('${file.filepath}')">
+                <div class="history-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                </div>
+                <div class="history-info">
+                    <div class="history-title">Fahrt #${num} - ${file.date}</div>
+                    <div class="history-meta">
+                        <span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            ${file.time}
+                        </span>
+                        <span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            ${file.size_kb} KB
+                        </span>
+                        <span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                            </svg>
+                            ${file.total_rows.toLocaleString('de-DE')} Punkte
+                        </span>
+                    </div>
+                </div>
+                <div class="history-actions" onclick="event.stopPropagation()">
+                    <button class="icon-btn" onclick="viewFileCSV('${file.filepath}')" title="CSV ansehen">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </button>
+                    <button class="icon-btn" onclick="downloadFileCSV('${file.filepath}')" title="Herunterladen">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Datei auswählen und Dashboard aktualisieren
+function selectFile(filepath) {
+    loadDashboardData(filepath);
+}
+
+// Aktuelle Datei in History markieren
+function highlightCurrentFileInHistory() {
+    document.querySelectorAll('.history-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    if (currentFile) {
+        const items = document.querySelectorAll('.history-item');
+        items.forEach(item => {
+            if (item.onclick.toString().includes(currentFile)) {
+                item.classList.add('active');
+            }
+        });
+    }
+}
+
+// History manuell aktualisieren
+async function refreshHistory() {
+    const btn = document.getElementById('refresh-btn');
+    btn.classList.add('spinning');
+    
+    await loadRecentFiles();
+    
+    setTimeout(() => {
+        btn.classList.remove('spinning');
+    }, 500);
+}
+
+// Benachrichtigung anzeigen
+function showNotification(message) {
+    // Einfache Browser-Benachrichtigung
+    if (Notification.permission === "granted") {
+        new Notification("Fahrdatenlogger", {
+            body: message,
+            icon: "/static/favicon.ico"
+        });
+    }
+    
+    // Alternativ: Inline-Benachrichtigung im UI
+    console.log('Notification:', message);
 }
 
 // KPI Cards aktualisieren
@@ -206,13 +386,35 @@ function createOrUpdateChart(canvasId, config) {
     });
 }
 
-// CSV Download
+// CSV Download (aktuelle Datei)
 function downloadCSV() {
-    window.location.href = '/download/csv';
+    const url = currentFile ? 
+        `/download/csv?file=${encodeURIComponent(currentFile)}` : 
+        '/download/csv';
+    window.location.href = url;
 }
 
-// CSV Anzeigen
+// CSV Download (spezifische Datei)
+function downloadFileCSV(filepath) {
+    window.location.href = `/download/csv?file=${encodeURIComponent(filepath)}`;
+}
+
+// CSV Anzeigen (aktuelle Datei)
 async function viewCSV() {
+    const url = currentFile ? 
+        `/view/csv?file=${encodeURIComponent(currentFile)}` : 
+        '/view/csv';
+    await viewCSVWithUrl(url);
+}
+
+// CSV Anzeigen (spezifische Datei)
+async function viewFileCSV(filepath) {
+    const url = `/view/csv?file=${encodeURIComponent(filepath)}`;
+    await viewCSVWithUrl(url);
+}
+
+// CSV Modal anzeigen
+async function viewCSVWithUrl(url) {
     const modal = document.getElementById('csvModal');
     const content = document.getElementById('csvContent');
     
@@ -221,7 +423,7 @@ async function viewCSV() {
     content.innerHTML = '<div class="loading">Lade CSV-Daten</div>';
     
     try {
-        const response = await fetch('/view/csv');
+        const response = await fetch(url);
         const data = await response.json();
         
         if (data.error) {
@@ -232,6 +434,7 @@ async function viewCSV() {
         // Tabelle erstellen
         let html = `
             <div style="margin-bottom: 1rem; color: #9aa0a6;">
+                <strong>${data.filename}</strong><br>
                 Zeige ${data.displayed_rows} von ${data.total_rows} Zeilen
             </div>
             <table class="csv-table">
@@ -282,3 +485,8 @@ document.addEventListener('keydown', function(event) {
         closeModal();
     }
 });
+
+// Benachrichtigungs-Berechtigung anfordern (optional)
+if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+}

@@ -2,7 +2,14 @@ import sqlite3      # DB
 import datetime     # Timestamps
 import os           # für Paths
 import csv    
-import math         # für Strecken berechnung     
+import math         # für Strecken berechnung    
+
+# Config importieren für Dashboard-Trigger und Cleanup
+try:
+    import config
+    config_available = True
+except ImportError:
+    config_available = False
 
 # ------------------------------------ Datenlogger Klasse ------------------------------------
 class Datalogger: 
@@ -197,3 +204,28 @@ class Datalogger:
     def close(self):         
         self.export_csv()       # erstellt die CSV
         self.conn.close()       # schließt die DB
+        
+        # Web-Dashboard-Trigger: CSV-Pfad in shared file schreiben
+        if config_available and hasattr(config, 'DASHBOARD_ENABLED') and config.DASHBOARD_ENABLED:
+            try:
+                with open(config.DASHBOARD_WATCH_FILE, "w") as f:
+                    f.write(self.csv_filename)
+                print(f" Dashboard-Trigger erstellt")
+            except Exception as e:
+                print(f" Dashboard-Trigger Fehler: {e}")
+        else:
+            # Fallback wenn config.py nicht verfügbar
+            try:
+                dashboard_trigger = os.path.join(os.path.dirname(__file__), "..", "logs", "latest_csv.txt")
+                with open(dashboard_trigger, "w") as f:
+                    f.write(self.csv_filename)
+                print(f"Dashboard-Trigger erstellt: {dashboard_trigger}")
+            except Exception as e:
+                print(f"Warnung: Dashboard-Trigger konnte nicht erstellt werden: {e}")
+        
+        # Alte Logs aufräumen (falls config.py verfügbar)
+        if config_available:
+            try:
+                config.cleanup_old_logs()
+            except Exception as e:
+                print(f" Cleanup-Fehler: {e}")
