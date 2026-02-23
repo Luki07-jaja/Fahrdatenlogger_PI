@@ -20,7 +20,7 @@ class DashboardScreen(Screen):
         super().__init__(name="dashboard", **kw)
 
         self.logger_running = False
-        Clock.schedule_interval(self._update_live, 0.1)  # Live refresh
+        Clock.schedule_interval(self._update_live, 1/15)  # Live refresh 15Hz
 
         # ---------------------- ROOT -> Alles unter HeaderBar -----------------------------
         root = BoxLayout(orientation="vertical", padding=(10, 10), spacing=10)
@@ -245,7 +245,7 @@ class DashboardScreen(Screen):
         if drive_time:
             self.drive_time_lbl.text = f"[b]{drive_time}[/b]"
 
-        speed = data.get("gps_speed")
+        speed = data.get("speed")
         if speed is None:
             speed = 0.0
 

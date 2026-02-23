@@ -73,7 +73,7 @@ body {
 .header h1 {
     font-size: 1.8rem;
     font-weight: 700;
-    background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+    background: linear-gradient(135deg, #6b7280 0%, #ffffff 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -100,24 +100,27 @@ body {
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
-    color: white;
+    background: linear-gradient(200deg, #6b7280 0%, #ffffff 100%);
+    color: #1a1f29;
 }
 
 .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 212, 255, 0.4);
+    box-shadow: 0 8px 20px rgba(17, 240, 69, 0.4);
+    background:  #ffffff;
+    border-color: #6b7280;
 }
 
 .btn-secondary {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    background: linear-gradient(200deg, #6b7280 0%, #ffffff 100%);
+    color: #1a1f29;
 }
 
 .btn-secondary:hover {
-    background: var(--bg-primary);
-    border-color: var(--accent-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(17, 240, 69, 0.4);
+    background:  #ffffff;
+    border-color: #6b7280;
 }
 
 /* ===== Dashboard ===== */
