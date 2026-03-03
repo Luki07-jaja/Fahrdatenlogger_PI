@@ -1,4 +1,4 @@
-// Dashboard JavaScript - Erweiterte Version mit History Feature
+// Dashboard JavaScript - Erweiterte Version mit Höhe und Neigung
 let charts = {};
 let currentFile = null;
 let recentFiles = [];
@@ -75,9 +75,6 @@ async function checkForNewFiles() {
                 showNotification('Neue Fahrt erkannt!');
                 recentFiles = newFiles;
                 displayRecentFiles(recentFiles);
-                
-                // Optional: Automatisch neue Fahrt laden
-                // loadDashboardData(newFiles[0].filepath);
             }
         }
     } catch (error) {
@@ -198,15 +195,12 @@ async function refreshHistory() {
 
 // Benachrichtigung anzeigen
 function showNotification(message) {
-    // Einfache Browser-Benachrichtigung
     if (Notification.permission === "granted") {
         new Notification("Fahrdatenlogger", {
             body: message,
             icon: "/static/favicon.ico"
         });
     }
-    
-    // Alternativ: Inline-Benachrichtigung im UI
     console.log('Notification:', message);
 }
 
@@ -239,6 +233,23 @@ function updateKPIs(data) {
     document.getElementById('avg-temp').innerHTML = 
         `${data.avg_temp.toFixed(2)} <span class="unit">°C</span>`;
     document.getElementById('max-temp').textContent = data.max_temp.toFixed(2);
+    
+    // ========== NEU: Höhe (Altitude) ==========
+    if (document.getElementById('avg-altitude')) {
+        document.getElementById('avg-altitude').innerHTML = 
+            `${data.avg_altitude.toFixed(2)} <span class="unit">m</span>`;
+        document.getElementById('max-altitude').textContent = data.max_altitude.toFixed(2);
+        document.getElementById('min-altitude').textContent = data.min_altitude.toFixed(2);
+        document.getElementById('altitude-gain').textContent = data.altitude_gain.toFixed(2);
+    }
+    
+    // ========== NEU: Neigung (Pitch) ==========
+    if (document.getElementById('avg-pitch')) {
+        document.getElementById('avg-pitch').innerHTML = 
+            `${data.avg_pitch.toFixed(2)} <span class="unit">°</span>`;
+        document.getElementById('max-pitch-up').textContent = data.max_pitch_up.toFixed(2);
+        document.getElementById('max-pitch-down').textContent = Math.abs(data.max_pitch_down).toFixed(2);
+    }
     
     // Datensatz-Anzahl
     document.getElementById('record-count').textContent = 
@@ -280,6 +291,24 @@ function updateCharts(data) {
         data: data.temp_data,
         borderColor: '#ff6b6b',
         backgroundColor: 'rgba(255, 107, 107, 0.1)',
+        fill: true
+    });
+    
+    // ========== NEU: Höhen-Chart ==========
+    createOrUpdateChart('altitudeChart', {
+        label: 'Höhe (m)',
+        data: data.altitude_data,
+        borderColor: '#a78bfa',
+        backgroundColor: 'rgba(167, 139, 250, 0.1)',
+        fill: true
+    });
+    
+    // ========== NEU: Neigungs-Chart ==========
+    createOrUpdateChart('pitchChart', {
+        label: 'Neigung (°)',
+        data: data.pitch_data,
+        borderColor: '#fbbf24',
+        backgroundColor: 'rgba(251, 191, 36, 0.1)',
         fill: true
     });
 }
@@ -418,7 +447,6 @@ async function viewCSVWithUrl(url) {
     const modal = document.getElementById('csvModal');
     const content = document.getElementById('csvContent');
     
-    // Modal öffnen
     modal.style.display = 'block';
     content.innerHTML = '<div class="loading">Lade CSV-Daten</div>';
     
@@ -431,7 +459,6 @@ async function viewCSVWithUrl(url) {
             return;
         }
         
-        // Tabelle erstellen
         let html = `
             <div style="margin-bottom: 1rem; color: #9aa0a6;">
                 <strong>${data.filename}</strong><br>
@@ -442,13 +469,11 @@ async function viewCSVWithUrl(url) {
                     <tr>
         `;
         
-        // Spaltenköpfe
         data.columns.forEach(col => {
             html += `<th>${col}</th>`;
         });
         html += '</tr></thead><tbody>';
         
-        // Datenzeilen
         data.data.forEach(row => {
             html += '<tr>';
             data.columns.forEach(col => {
@@ -486,7 +511,7 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-// Benachrichtigungs-Berechtigung anfordern (optional)
+// Benachrichtigungs-Berechtigung anfordern
 if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
 }

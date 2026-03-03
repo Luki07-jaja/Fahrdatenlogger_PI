@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Fahrdatenlogger Dashboard - Verbesserte Version
-Automatische CSV-Erkennung + Letzte 5 Fahrten Feature
+Fahrdatenlogger Dashboard - Erweiterte Version
+Mit Höhe (Altitude) und Neigung (Pitch) Support
 """
 
 from flask import Flask, render_template, jsonify, send_file, request
@@ -14,31 +14,23 @@ from pathlib import Path
 
 app = Flask(__name__)
 
-# Konfiguration - Passe diese Pfade an!
-# Option 1: Raspberry Pi Logger Integration
+# Konfiguration
 LOGS_DIR = "/home/luki/Fahrdatenlogger/RaspberryPi_App/logs"
 WATCH_FILE = os.path.join(LOGS_DIR, "latest_csv.txt")
 
-# Option 2: Standalone Modus (falls kein Logger läuft)
-# LOGS_DIR = "./logs"  # Lokaler logs Ordner
-
-# Sicherstellen, dass logs Directory existiert
 os.makedirs(LOGS_DIR, exist_ok=True)
 
 def get_latest_csv():
     """Findet die neueste CSV-Datei (automatisch)"""
     try:
-        # Methode 1: Aus Watch-File lesen (wenn Logger gerade geschlossen wurde)
         if os.path.exists(WATCH_FILE):
             with open(WATCH_FILE, 'r') as f:
                 csv_path = f.read().strip()
                 if os.path.exists(csv_path):
                     return csv_path
         
-        # Methode 2: Neueste CSV im logs Ordner finden
         csv_files = glob.glob(os.path.join(LOGS_DIR, "*_fahrt.csv"))
         if csv_files:
-            # Nach Änderungsdatum sortieren (neueste zuerst)
             latest = max(csv_files, key=os.path.getmtime)
             return latest
         
@@ -55,22 +47,18 @@ def get_recent_csvs(limit=5):
         if not csv_files:
             return []
         
-        # Nach Änderungsdatum sortieren (neueste zuerst)
         csv_files.sort(key=os.path.getmtime, reverse=True)
         
         recent = []
         for csv_file in csv_files[:limit]:
             try:
-                # Dateiinfo sammeln
                 stat = os.stat(csv_file)
-                file_size = stat.st_size / 1024  # KB
+                file_size = stat.st_size / 1024
                 mod_time = datetime.fromtimestamp(stat.st_mtime)
                 
-                # Schnell-Info aus CSV lesen
                 df = pd.read_csv(csv_file, sep=';', nrows=1)
-                total_rows = sum(1 for _ in open(csv_file)) - 1  # Zeilen ohne Header
+                total_rows = sum(1 for _ in open(csv_file)) - 1
                 
-                # Dateiname parsen für Datum/Zeit
                 basename = os.path.basename(csv_file)
                 filename_parts = basename.replace('_fahrt.csv', '').split('_')
                 
@@ -107,33 +95,89 @@ def parse_time(time_str):
 def analyze_data(csv_file=None):
     """Analysiert die CSV-Daten und berechnet Statistiken"""
     try:
-        # CSV-Datei auswählen
         if csv_file is None:
             csv_file = get_latest_csv()
         
         if csv_file is None or not os.path.exists(csv_file):
             raise FileNotFoundError("Keine CSV-Datei gefunden")
         
-        # CSV laden mit Semikolon als Trennzeichen
+        # CSV laden
         df = pd.read_csv(csv_file, sep=';')
         
-        # Datenbereinigung - nur numerische Werte
-        numeric_cols = ['gps_speed', 'lean_deg', 'batt_voltage', 'max_batt_temp', 'drive_distance']
+        # Datenbereinigung
+        numeric_cols = ['fusion_speed', 'lean_deg', 'batt_voltage', 'max_batt_temp', 
+                       'drive_distance', 'fusion_alt', 'pitch_deg']
         for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        # GPS Speed von km/h filtern (nur gültige Werte > 0)
-        valid_speeds = df[df['gps_speed'] > 0]['gps_speed']
+        # GPS Speed filtern
+        valid_speeds = df[df['fusion_speed'] > 0]['fusion_speed']
         
-        # Fahrzeit berechnen
+        # Fahrzeit
         drive_times = df['drive_time'].apply(parse_time)
         total_time_seconds = drive_times.max() if len(drive_times) > 0 else 0
         total_time = str(timedelta(seconds=int(total_time_seconds)))
         
-        # Gesamtstrecke (letzter Wert in km)
-        total_distance = df['drive_distance'].max() / 1000  # Umrechnung in km
+        # Gesamtstrecke
+        total_distance = df['drive_distance'].max() / 1000
         
-        # Statistiken berechnen
+        # ========== NEU: Höhe (Altitude) Statistiken ==========
+        altitude_stats = {}
+        if 'fusion_alt' in df.columns:
+            valid_altitude = df['fusion_alt'].dropna()
+            if len(valid_altitude) > 0:
+                altitude_stats = {
+                    'avg_altitude': round(valid_altitude.mean(), 2),
+                    'max_altitude': round(valid_altitude.max(), 2),
+                    'min_altitude': round(valid_altitude.min(), 2),
+                    'altitude_gain': round(valid_altitude.max() - valid_altitude.min(), 2),
+                    'altitude_data': valid_altitude[::50].tolist()  # Für Chart
+                }
+            else:
+                altitude_stats = {
+                    'avg_altitude': 0,
+                    'max_altitude': 0,
+                    'min_altitude': 0,
+                    'altitude_gain': 0,
+                    'altitude_data': []
+                }
+        else:
+            altitude_stats = {
+                'avg_altitude': 0,
+                'max_altitude': 0,
+                'min_altitude': 0,
+                'altitude_gain': 0,
+                'altitude_data': []
+            }
+        
+        # ========== NEU: Neigung (Pitch) Statistiken ==========
+        pitch_stats = {}
+        if 'pitch_deg' in df.columns:
+            valid_pitch = df['pitch_deg'].dropna()
+            if len(valid_pitch) > 0:
+                pitch_stats = {
+                    'avg_pitch': round(valid_pitch.abs().mean(), 2),
+                    'max_pitch_up': round(valid_pitch.max(), 2),
+                    'max_pitch_down': round(valid_pitch.min(), 2),
+                    'pitch_data': valid_pitch[::50].tolist()  # Für Chart
+                }
+            else:
+                pitch_stats = {
+                    'avg_pitch': 0,
+                    'max_pitch_up': 0,
+                    'max_pitch_down': 0,
+                    'pitch_data': []
+                }
+        else:
+            pitch_stats = {
+                'avg_pitch': 0,
+                'max_pitch_up': 0,
+                'max_pitch_down': 0,
+                'pitch_data': []
+            }
+        
+        # Statistiken zusammenführen
         stats = {
             # Dateiinfo
             'current_file': os.path.basename(csv_file),
@@ -144,7 +188,7 @@ def analyze_data(csv_file=None):
             'max_speed': round(valid_speeds.max(), 2) if len(valid_speeds) > 0 else 0,
             'min_speed': round(valid_speeds.min(), 2) if len(valid_speeds) > 0 else 0,
             
-            # Kurvenlage (Lean Angle)
+            # Kurvenlage
             'avg_lean': round(df['lean_deg'].abs().mean(), 2),
             'max_lean': round(df['lean_deg'].abs().max(), 2),
             'max_lean_left': round(df['lean_deg'].min(), 2),
@@ -165,12 +209,16 @@ def analyze_data(csv_file=None):
             'total_distance': round(total_distance, 2),
             'total_records': len(df),
             
-            # Zeitreihen für Diagramme (alle 50. Datenpunkt)
+            # Zeitreihen für Diagramme
             'speed_data': valid_speeds[::50].tolist() if len(valid_speeds) > 0 else [],
             'lean_data': df['lean_deg'][::50].tolist(),
             'voltage_data': df['batt_voltage'][::50].tolist(),
             'temp_data': df['max_batt_temp'][::50].tolist(),
         }
+        
+        # NEU: Höhe und Neigung hinzufügen
+        stats.update(altitude_stats)
+        stats.update(pitch_stats)
         
         return stats
     
@@ -185,7 +233,10 @@ def analyze_data(csv_file=None):
             'avg_voltage': 0, 'max_voltage': 0, 'min_voltage': 0,
             'avg_temp': 0, 'max_temp': 0, 'min_temp': 0,
             'total_time': '00:00:00', 'total_distance': 0, 'total_records': 0,
-            'speed_data': [], 'lean_data': [], 'voltage_data': [], 'temp_data': []
+            'speed_data': [], 'lean_data': [], 'voltage_data': [], 'temp_data': [],
+            # NEU
+            'avg_altitude': 0, 'max_altitude': 0, 'min_altitude': 0, 'altitude_gain': 0, 'altitude_data': [],
+            'avg_pitch': 0, 'max_pitch_up': 0, 'max_pitch_down': 0, 'pitch_data': []
         }
 
 @app.route('/')
@@ -196,7 +247,6 @@ def index():
 @app.route('/api/stats')
 def get_stats():
     """API Endpoint für Statistiken"""
-    # Optional: Spezifische Datei laden
     csv_file = request.args.get('file', None)
     stats = analyze_data(csv_file)
     return jsonify(stats)
@@ -244,7 +294,6 @@ def view_csv():
             return jsonify({'error': 'Datei nicht gefunden'}), 404
         
         df = pd.read_csv(csv_file, sep=';')
-        # Erste 1000 Zeilen für Anzeige
         data = df.head(1000).to_dict(orient='records')
         return jsonify({
             'filename': os.path.basename(csv_file),
@@ -271,14 +320,13 @@ def health_check():
     })
 
 if __name__ == '__main__':
-    
     latest = get_latest_csv()
     if latest:
-        print(f" Aktuelle CSV: {os.path.basename(latest)}")
+        print(f"✓ Aktuelle CSV: {os.path.basename(latest)}")
     else:
-        print(" Keine CSV-Dateien gefunden")
+        print("✗ Keine CSV-Dateien gefunden")
     
     recent = get_recent_csvs()
-    print(f" Letzte Fahrten: {len(recent)}")
+    print(f"✓ Letzte Fahrten: {len(recent)}")
     
     app.run(debug=True, host='0.0.0.0', port=8080)
