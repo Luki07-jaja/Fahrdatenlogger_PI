@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fahrdatenlogger Dashboard - Komplett</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Leaflet für Karte -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        /* History Feature Styles */
+        .history-section {
+            margin-bottom: 2rem;
+        }
+        
+        /* ========== EMX Logo Gradient & Animation ========== */
+        .emx-logo {
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .emx-gradient {
+            fill: #43e97b;
+        }
+        
+        .history-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+        }
+        
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .history-header h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .refresh-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .refresh-btn:hover {
+            background: var(--bg-primary);
+            border-color: var(--accent-blue);
+            transform: scale(1.05);
+        }
+        
+        .refresh-btn.spinning svg {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .history-list {
+            display: grid;
+            gap: 1rem;
+        }
+        
+        .history-item {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 1.5rem;
+            align-items: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .history-item:hover {
+            border-color: var(--accent-blue);
+            transform: translateX(5px);
+            background: var(--bg-secondary);
+        }
+        
+        .history-item.active {
+            border-color: var(--accent-purple);
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+        
+        .history-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #f1b80d 0%, #f5efa4 100%);
+        }
+        
+        .history-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+        
+        .history-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .history-meta {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .history-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        
+        .history-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .icon-btn {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .icon-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            transform: scale(1.1);
+        }
+        
+        .current-file-badge {
+            display: inline-block;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+        
+        .current-file-badge span {
+            color: var(--accent-blue);
+            font-weight: 600;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* ========== MAP SECTION STYLES ========== */
+        .map-section {
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .map-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+        }
+
+        .map-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+            border-color: var(--accent-green);
+        }
+
+        .map-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .map-header h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .map-stats {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .map-stat {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .speed-legend {
+            display: flex;
+            gap: 0.75rem;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+
+        .speed-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .speed-legend-color {
+            width: 20px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        #routeMap {
+            width: 100%;
+            height: 500px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+        }
+
+        .leaflet-container {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+        }
+
+        /* Dark mode für Leaflet Popups */
+        .leaflet-popup-content-wrapper {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .leaflet-popup-tip {
+            background: var(--bg-secondary);
+        }
+
+        .map-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 500px;
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            color: var(--text-secondary);
+        }
+
+        .map-empty svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <!-- Kleines Icon -->
+                    <div class="logo">
+                        <svg width="45" height="45" viewBox="0 0 40 40" fill="none">
+                            <circle cx="20" cy="20" r="18" stroke="#43e97b" stroke-width="2"/>
+                            <path d="M15 20 L20 15 L25 20 L20 25 Z" fill="#43e97b"/>
+                        </svg>
+                    </div>
+                    <svg width="135" height="65" viewBox="0 0 200 90" style="margin-right: 12px;" xml:space="preserve" class="emx-logo">
+                        <defs>
+                            <linearGradient id="emxGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" style="stop-color:#43e97b;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#38f9d7;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <path class="emx-gradient" d="M 76.000689 7.9990809 L 65.99977 36 L 74.000919 36 L 62.999081 61.999081 L 85.99954 32.00046 L 76.99954 32.00046 L 87.999311 7.9990809 L 76.000689 7.9990809 z M 25.402574 21.209559 L 25.402574 57.000689 L 55.579044 57.000689 L 55.579044 48.894072 L 36.487132 48.894072 L 36.487132 41.838006 L 53.699219 41.838006 L 53.699219 34.539982 L 36.487132 34.539982 L 36.487132 28.850873 L 55.04136 28.850873 L 55.04136 21.209559 L 25.402574 21.209559 z M 94.540441 21.209559 L 94.540441 57.000689 L 103.59835 57.000689 L 103.59835 29.704963 L 110.57996 57.000689 L 118.75896 57.000689 L 125.7654 29.704963 L 125.7654 57.000689 L 134.79848 57.000689 L 134.79848 21.209559 L 120.29756 21.209559 L 114.70565 42.985754 L 109.09099 21.209559 L 94.540441 21.209559 z M 139.38948 21.209559 L 150.6188 38.347197 L 138.26654 57.000689 L 150.6188 57.000689 L 157.69968 45.50046 L 164.75574 57.000689 L 177.18244 57.000689 L 164.99977 38.543658 L 176.13189 21.209559 L 164.07123 21.209559 L 157.91889 32.219669 L 151.57215 21.209559 L 139.38948 21.209559 z M 10 64.99977 L 10 67.5 L 190 67.5 L 190 64.99977 L 10 64.99977 z"/>
+                    </svg>
+                    <h1></h1>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="viewCSV()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#43e97b" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        CSV Ansehen
+                    </button>
+                    <button class="btn btn-primary" onclick="downloadCSV()">
+                        <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#43e97b" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download CSV
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard">
+            <!-- Current File Badge -->
+            <div class="current-file-badge">
+                📊 Aktuelle Fahrt: <span id="current-file-name">Lade...</span>
+            </div>
+
+            <!-- History Section -->
+            <section class="history-section">
+                <div class="history-card">
+                    <div class="history-header">
+                        <h2>
+                            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            Letzte Fahrten
+                        </h2>
+                        <button class="refresh-btn" onclick="refreshHistory()" id="refresh-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                            </svg>
+                            Aktualisieren
+                        </button>
+                    </div>
+                    <div id="history-list" class="history-list">
+                        <div class="loading">Lade Fahrthistorie</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- KPI Cards -->
+            <section class="kpi-grid">
+                <!-- Fahrzeit -->
+                <div class="card kpi-card">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="kpi-label">Fahrzeit</div>
+                        <div class="kpi-value" id="total-time">--:--:--</div>
+                    </div>
+                </div>
+
+                <!-- Gesamtstrecke -->
+                <div class="card kpi-card">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="kpi-label">Gesamtstrecke</div>
+                        <div class="kpi-value" id="total-distance">0.00 <span class="unit">km</span></div>
+                    </div>
+                </div>
+
+                <!-- Durchschnittsgeschwindigkeit -->
+                <div class="card kpi-card">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <path d="M12 2v4m0 12v4M2 12h4m12 0h4m-2.928 7.072l-2.828-2.828M7.757 7.757L4.929 4.93m14.142 0l-2.828 2.828M7.757 16.243l-2.828 2.828"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="kpi-label">Ø Geschwindigkeit</div>
+                        <div class="kpi-value" id="avg-speed">0.00 <span class="unit">km/h</span></div>
+                        <div class="kpi-sublabel">Max: <span id="max-speed">0.00</span> km/h</div>
+                    </div>
+                </div>
+
+                <!-- Kurvenlage -->
+                <div class="card kpi-card">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                            <line x1="7" y1="7" x2="7.01" y2="7"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="kpi-label">Ø Kurvenlage</div>
+                        <div class="kpi-value" id="avg-lean">0.00 <span class="unit">°</span></div>
+                        <div class="kpi-sublabel">Max: <span id="max-lean">0.00</span>°</div>
+                    </div>
+                </div>
+
+                <!-- Batteriespannung -->
+                <div class="card kpi-card">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <rect x="1" y="6" width="18" height="12" rx="2" ry="2"/>
+                            <line x1="23" y1="13" x2="23" y2="11"/>
+                            <polyline points="11 10 7 14 11 14"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="kpi-label">Ø Batteriespannung</div>
+                        <div class="kpi-value" id="avg-voltage">0.00 <span class="unit">V</span></div>
+                        <div class="kpi-sublabel">Min: <span id="min-voltage">0.00</span> V | Max: <span id="max-voltage">0.00</span> V</div>
+                    </div>
+                </div>
+
+                <!-- Batterietemperatur -->
+                <div class="card kpi-card">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="kpi-label">Ø Batterietemperatur</div>
+                        <div class="kpi-value" id="avg-temp">0.00 <span class="unit">°C</span></div>
+                        <div class="kpi-sublabel">Max: <span id="max-temp">0.00</span> °C</div>
+                    </div>
+                </div>
+
+                <!-- Höhe -->
+                <div class="card kpi-card">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <path d="M4 19l8-14 8 14H4z"/>
+                            <line x1="12" y1="5" x2="12" y2="3"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="kpi-label">Ø Höhe</div>
+                        <div class="kpi-value" id="avg-altitude">0.00 <span class="unit">m</span></div>
+                        <div class="kpi-sublabel">Min: <span id="min-altitude">0.00</span> | Max: <span id="max-altitude">0.00</span> | Gewinn: <span id="altitude-gain">0.00</span> m</div>
+                    </div>
+                </div>
+
+                <!-- Neigung -->
+                <div class="card kpi-card">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <path d="M19 20L5 20L12 4z"/>
+                            <line x1="12" y1="4" x2="12" y2="20"/>
+                        </svg>
+                    </div>
+                    <div class="card-content">
+                        <div class="kpi-label">Ø Neigung</div>
+                        <div class="kpi-value" id="avg-pitch">0.00 <span class="unit">°</span></div>
+                        <div class="kpi-sublabel">↗ Max Anstieg: <span id="max-pitch-up">0.00</span>° | ↘ Max Gefälle: <span id="max-pitch-down">0.00</span>°</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-grid">
+                <!-- Geschwindigkeit Chart -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h3>Geschwindigkeitsverlauf</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="speedChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Kurvenlage Chart -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h3>Kurvenlage (Lean Angle)</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="leanChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Höhenverlauf Chart -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h3>Höhenverlauf</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="altitudeChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Neigung Chart -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h3>Neigung (Pitch)</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="pitchChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Batteriespannung Chart -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h3>Batteriespannung</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="voltageChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Batterietemperatur Chart -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h3>Batterietemperatur</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="tempChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========== MAP SECTION (NEU!) ========== -->
+            <section class="map-section">
+                <div class="map-card">
+                    <div class="map-header">
+                        <h3>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#43e97b" stroke-width="2">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                <circle cx="12" cy="10" r="3"/>
+                            </svg>
+                            Fahrstrecke
+                        </h3>
+                        <div class="map-stats">
+                            <div class="map-stat">
+                                <span>📍</span>
+                                <span id="mapPointCount">-- Punkte</span>
+                            </div>
+                            <div class="map-stat">
+                                <span>📏</span>
+                                <span id="mapDistance">-- km</span>
+                            </div>
+                        </div>
+                        <!-- Speed Legende -->
+                        <div class="speed-legend">
+                            <span style="color: var(--text-secondary); font-weight: 600;">Geschwindigkeit:</span>
+                            <div class="speed-legend-item">
+                                <div class="speed-legend-color" style="background: #10b981;"></div>
+                                <span>0-10 km/h</span>
+                            </div>
+                            <div class="speed-legend-item">
+                                <div class="speed-legend-color" style="background: #84cc16;"></div>
+                                <span>10-30 km/h</span>
+                            </div>
+                            <div class="speed-legend-item">
+                                <div class="speed-legend-color" style="background: #eab308;"></div>
+                                <span>30-50 km/h</span>
+                            </div>
+                            <div class="speed-legend-item">
+                                <div class="speed-legend-color" style="background: #f97316;"></div>
+                                <span>50-70 km/h</span>
+                            </div>
+                            <div class="speed-legend-item">
+                                <div class="speed-legend-color" style="background: #ef4444;"></div>
+                                <span>70-90 km/h</span>
+                            </div>
+                            <div class="speed-legend-item">
+                                <div class="speed-legend-color" style="background: #dc2626;"></div>
+                                <span>90+ km/h</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="mapContainer">
+                        <div id="routeMap"></div>
+                        <div id="mapEmptyState" class="map-empty" style="display: none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                <circle cx="12" cy="10" r="3"/>
+                            </svg>
+                            <p>Keine GPS-Daten verfügbar</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- CSV Viewer Modal -->
+        <div id="csvModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>CSV Daten</h2>
+                    <button class="close-btn" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="csvContent">
+                        <div class="loading">Lade Daten...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Fahrdatenlogger Dashboard | <span id="record-count">0</span> Datensätze geladen</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script>
+        // ========== MAP FUNCTIONALITY ==========
+        let map = null;
+        let routeLayer = null;
+
+        function initMap() {
+            if (map) {
+                map.remove();
+            }
+
+            map = L.map('routeMap').setView([47.5, 10.0], 13);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap',
+                maxZoom: 19
+            }).addTo(map);
+        }
+
+        function drawRoute(data) {
+            if (!data || data.length === 0) {
+                document.getElementById('routeMap').style.display = 'none';
+                document.getElementById('mapEmptyState').style.display = 'flex';
+                return;
+            }
+
+            // Filter gültige GPS-Punkte
+            const gpsPoints = data.filter(row => 
+                row.gps_lat && row.gps_long && 
+                !isNaN(row.gps_lat) && !isNaN(row.gps_long) &&
+                row.gps_lat !== 0 && row.gps_long !== 0
+            );
+
+            if (gpsPoints.length === 0) {
+                document.getElementById('routeMap').style.display = 'none';
+                document.getElementById('mapEmptyState').style.display = 'flex';
+                return;
+            }
+
+            document.getElementById('routeMap').style.display = 'block';
+            document.getElementById('mapEmptyState').style.display = 'none';
+
+            if (!map) {
+                initMap();
+            }
+
+            if (routeLayer) {
+                map.removeLayer(routeLayer);
+            }
+
+            const coordinates = gpsPoints.map(p => [p.gps_lat, p.gps_long]);
+
+            // Route zeichnen
+            routeLayer = L.polyline(coordinates, {
+                color: '#43e97b',
+                weight: 4,
+                opacity: 0.8,
+                smoothFactor: 1
+            }).addTo(map);
+
+            // Start Marker (grün)
+            const start = coordinates[0];
+            L.marker(start, {
+                icon: L.divIcon({
+                    html: '<div style="background: #10b981; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5);"></div>',
+                    className: '',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                })
+            }).bindPopup(`<b>Start</b><br>Zeit: ${gpsPoints[0].pi_timestamp || '--'}`).addTo(map);
+
+            // Ziel Marker (rot)
+            const end = coordinates[coordinates.length - 1];
+            L.marker(end, {
+                icon: L.divIcon({
+                    html: '<div style="background: #ef4444; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5);"></div>',
+                    className: '',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                })
+            }).bindPopup(`<b>Ziel</b><br>Zeit: ${gpsPoints[gpsPoints.length-1].pi_timestamp || '--'}`).addTo(map);
+
+            // Karte auf Route zoomen
+            map.fitBounds(routeLayer.getBounds(), {
+                padding: [50, 50]
+            });
+
+            // Statistiken updaten
+            document.getElementById('mapPointCount').textContent = `${gpsPoints.length} Punkte`;
+            
+            // Distanz berechnen
+            let totalDist = 0;
+            for (let i = 1; i < coordinates.length; i++) {
+                totalDist += map.distance(coordinates[i-1], coordinates[i]);
+            }
+            document.getElementById('mapDistance').textContent = `${(totalDist / 1000).toFixed(2)} km`;
+        }
+
+        // Erweitere die existierende loadCSV-Funktion
+        const originalLoadCSV = window.loadCSV;
+        if (originalLoadCSV) {
+            window.loadCSV = function(filename) {
+                return originalLoadCSV(filename).then(() => {
+                    if (window.data) {
+                        drawRoute(window.data);
+                    }
+                });
+            };
+        }
+    </script>
+</body>
+</html>

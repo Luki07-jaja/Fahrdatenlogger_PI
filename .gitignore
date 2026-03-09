@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+env/
+.env/
+
+# Logs & Data
+*.log
+*.csv
+*.db
+*.sqlite
+logs/
+RaspberryPi_App/logs/
+Fahrdatenlogger_WebUI/logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+*.bak
+*.backup
+
+# Temporary
+*.tmp
+.cache/
